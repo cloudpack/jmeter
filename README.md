@@ -30,13 +30,17 @@
 </jmeterTestPlan>
 ```
 
-## execute
+## CloudFormation
 ```
 export ProjectName=Jmeter1
 export KeyName=key-name
 export CustomerCidrIp=xxx.xxx.xxx.xxx/xxx
-export TemplateBucket=jmeter-template-bucket
+export TemplateBukcket=jmeter-template-bucket
+./jmeter-present.sh 
+```
 
+## Execute
+```
 /usr/local/apache-jmeter-2.13/bin/jmeter -n \
 -t example.jmx \
 -Dclient.rmi.localport=55512 \
