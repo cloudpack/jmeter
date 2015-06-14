@@ -14,7 +14,7 @@
 
   - name: create jmeter cloudformation
     cloudformation:
-      state: present
+      state: "{{ State }}"
       region: "{{ Region }}"
       template: ../../cloudformation/jmeter.json
       stack_name: "{{ ProjectName }}"
