@@ -1,0 +1,25 @@
+- hosts: localhost
+  gather_facts: no
+  connection: local
+  tasks:
+
+  - name: create s3 bucket
+    s3:
+      mode: create
+      region: "{{ Region }}"
+      bucket: "{{ TemplateBucket }}"
+
+  - name: sync cloudformation template
+    shell: aws s3 sync --region "{{ Region }}" --delete ../../cloudformation s3://"{{ TemplateBucket }}"
+
+  - name: create jmeter cloudformation
+    cloudformation:
+      state: present
+      region: "{{ Region }}"
+      template: ../../cloudformation/jmeter.json
+      stack_name: "{{ ProjectName }}"
+      template_parameters:
+        ProjectName: "{{ ProjectName }}"
+        KeyName: "{{ KeyName }}"
+        CustomerCidrIp: "{{ CustomerCidrIp }}"
+        TemplateBucket: "{{ TemplateBucket }}"

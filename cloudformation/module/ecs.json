@@ -1,0 +1,166 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Parameters": {
+        "ProjectName": {
+            "Type": "String",
+            "Default": "Cloudpack"
+        },
+        "RoleName": {
+            "Type": "String",
+            "Default": "Ecs"
+        },
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName"
+        },
+        "InstanceType": {
+            "Type": "String",
+            "Default": "t2.micro"
+        },
+        "CommonSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup::Id"
+        },
+        "VpcId": {
+            "Type": "AWS::EC2::VPC::Id"
+        },
+        "Az1VpcZoneIdentifier": {
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "Az2VpcZoneIdentifier": {
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "DesiredCapacity": {
+            "Type": "String",
+            "Default": "0"
+        }
+    },
+    "Resources": {
+        "Cluster": {
+            "Type": "AWS::ECS::Cluster"
+        },
+        "RoleSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": { "Fn::Join" : [ "", [
+                    { "Ref": "ProjectName" },
+                    { "Ref": "RoleName" }
+                ] ] },
+                "VpcId": { "Ref": "VpcId" },
+                "SecurityGroupIngress": [],
+                "SecurityGroupEgress": [],
+                "Tags": [ {
+                    "Key": "Name",
+                    "Value": { "Fn::Join" : [ "", [
+                        { "Ref": "ProjectName" },
+                        { "Ref": "RoleName" },
+                        "Instance"
+                    ] ] }
+                } ]
+            }
+        },
+        "Role": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [ {
+                        "Effect": "Allow",
+                        "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+                        "Action": [ "sts:AssumeRole" ]
+                    } ]
+                },
+                "Path": "/",
+                "Policies": [ {
+                    "PolicyName": { "Fn::Join" : [ "", [
+                        { "Ref": "ProjectName" },
+                        "Ecs"
+                    ] ] },
+                    "PolicyDocument": {
+                        "Version" : "2012-10-17",
+                        "Statement": [ {
+                            "Effect": "Allow",
+                            "Action": [
+                                "ecs:CreateCluster",
+                                "ecs:DeregisterContainerInstance",
+                                "ecs:DiscoverPollEndpoint",
+                                "ecs:Poll",
+                                "ecs:RegisterContainerInstance",
+                                "ecs:Submit*"
+                            ],
+                            "Resource": [ "*" ]
+                        } ]
+                    }
+                } ]
+            }
+        },
+        "InstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Path": "/",
+                "Roles": [ {
+                    "Ref": "Role"
+                } ]
+            }
+        },
+        "LaunchConfiguration": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "AssociatePublicIpAddress": "true",
+                "KeyName": { "Ref": "KeyName" },
+                "ImageId": "ami-39017e03",
+                "InstanceType": { "Ref": "InstanceType" },
+                "IamInstanceProfile": { "Ref": "InstanceProfile" },
+                "SecurityGroups": [
+                    { "Ref": "CommonSecurityGroup" },
+                    { "Ref": "RoleSecurityGroup" }
+                ],
+                "UserData": { "Fn::Base64": { "Fn::Join" : [ "\n", [
+                    "#!/bin/bash",
+                    { "Fn::Join" : [ "", [
+                        "echo ECS_CLUSTER=",
+                        { "Ref": "Cluster" },
+                        " >> /etc/ecs/ecs.config"
+                    ] ] }
+                ] ] } }
+            }
+        },
+        "AutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "LaunchConfigurationName": { "Ref": "LaunchConfiguration" },
+                "MinSize": "0",
+                "MaxSize": "4",
+                "DesiredCapacity": { "Ref": "DesiredCapacity" },
+                "Cooldown": "0",
+                "VPCZoneIdentifier": [
+                    { "Ref" : "Az1VpcZoneIdentifier" },
+                    { "Ref" : "Az2VpcZoneIdentifier" }
+                ],
+                "Tags": [ {
+                    "Key": "Name",
+                    "Value": { "Fn::Join" : [ "", [
+                        { "Ref": "ProjectName" },
+                        { "Ref": "RoleName" }
+                    ] ] },
+                    "PropagateAtLaunch": "true"
+                } ]
+            },
+            "UpdatePolicy": {
+                "AutoScalingRollingUpdate": {
+                    "MaxBatchSize": "1",
+                    "MinInstancesInService": "1"
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "Cluster": {
+            "Value":  { "Ref": "Cluster" }
+        },
+        "Role": {
+            "Value":  { "Ref": "Role" }
+        },
+        "RoleSecurityGroup": {
+            "Value":  { "Ref": "RoleSecurityGroup" }
+        }
+    }
+}

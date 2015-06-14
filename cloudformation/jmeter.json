@@ -1,0 +1,257 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Parameters": {
+        "ProjectName": {
+            "Type": "String",
+            "Default": "Jmeter0"
+        },
+        "TemplateBucket": {
+            "Type": "String"
+        },
+        "CustomerCidrIp": {
+            "Type": "String"
+        },
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName"
+        },
+        "ClientInstanceType": {
+            "Type": "String",
+            "Default": "t2.micro"
+        },
+        "ServerInstanceType": {
+            "Type": "String",
+            "Default": "t2.micro"
+        }
+    },
+    "Resources": {
+        "VpcStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": { "Fn::Join" : [ "", [
+                    "https://s3-",
+                    { "Ref": "AWS::Region" },
+                    ".amazonaws.com/",
+                    { "Ref": "TemplateBucket" },
+                    "/module/vpc.json"
+                ] ] },
+                "Parameters": {
+                    "ProjectName": { "Ref": "ProjectName" }
+                }
+            }
+        },
+        "ClientStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": { "Fn::Join" : [ "", [
+                    "https://s3-",
+                    { "Ref": "AWS::Region" },
+                    ".amazonaws.com/",
+                    { "Ref": "TemplateBucket" },
+                    "/module/ecs.json"
+                ] ] },
+                "Parameters": {
+                    "ProjectName": { "Ref": "ProjectName" },
+                    "RoleName": "Client",
+                    "KeyName": { "Ref": "KeyName" },
+                    "InstanceType": { "Ref": "ClientInstanceType" },
+                    "CommonSecurityGroup": { "Fn::GetAtt" : [ "VpcStack", "Outputs.CommonSecurityGroup" ] },
+                    "VpcId": { "Fn::GetAtt" : [ "VpcStack", "Outputs.Vpc" ] },
+                    "Az1VpcZoneIdentifier": { "Fn::GetAtt" : [ "VpcStack", "Outputs.Public1Subnet" ] },
+                    "Az2VpcZoneIdentifier": { "Fn::GetAtt" : [ "VpcStack", "Outputs.Public2Subnet" ] },
+                    "DesiredCapacity": "1"
+                }
+            }
+        },
+        "ServerStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": { "Fn::Join" : [ "", [
+                    "https://s3-",
+                    { "Ref": "AWS::Region" },
+                    ".amazonaws.com/",
+                    { "Ref": "TemplateBucket" },
+                    "/module/ecs.json"
+                ] ] },
+                "Parameters": {
+                    "ProjectName": { "Ref": "ProjectName" },
+                    "RoleName": "Server",
+                    "KeyName": { "Ref": "KeyName" },
+                    "InstanceType": { "Ref": "ServerInstanceType" },
+                    "CommonSecurityGroup": { "Fn::GetAtt" : [ "VpcStack", "Outputs.CommonSecurityGroup" ] },
+                    "VpcId": { "Fn::GetAtt" : [ "VpcStack", "Outputs.Vpc" ] },
+                    "Az1VpcZoneIdentifier": { "Fn::GetAtt" : [ "VpcStack", "Outputs.Public1Subnet" ] },
+                    "Az2VpcZoneIdentifier": { "Fn::GetAtt" : [ "VpcStack", "Outputs.Public2Subnet" ] },
+                    "DesiredCapacity": "2"
+                }
+            }
+        },
+        "ClientPolicy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": { "Fn::Join" : [ "", [
+                    { "Ref": "ProjectName" },
+                    "Client"
+                ] ] },
+                "PolicyDocument": {
+                    "Version" : "2012-10-17",
+                    "Statement": [ {
+                        "Effect": "Allow",
+                        "NotAction": [ "iam:*" ],
+                        "Resource": [ "*" ]
+                    } ]
+                },
+                "Roles": [ { "Fn::GetAtt" : [ "ClientStack", "Outputs.Role" ] } ]
+            }
+        },
+        "RmiRegistrySecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "IpProtocol": "tcp",
+                "FromPort": "11099",
+                "ToPort": "11099",
+                "SourceSecurityGroupId": { "Fn::GetAtt" : [ "ClientStack", "Outputs.RoleSecurityGroup" ] },
+                "GroupId": { "Fn::GetAtt" : [ "ServerStack", "Outputs.RoleSecurityGroup" ] }
+            }
+        },
+        "RmiServerSecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "IpProtocol": "tcp",
+                "FromPort": "55501",
+                "ToPort": "55501",
+                "SourceSecurityGroupId": { "Fn::GetAtt" : [ "ClientStack", "Outputs.RoleSecurityGroup" ] },
+                "GroupId": { "Fn::GetAtt" : [ "ServerStack", "Outputs.RoleSecurityGroup" ] }
+            }
+        },
+        "RmiClientSecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "IpProtocol": "tcp",
+                "FromPort": "55512",
+                "ToPort": "55512",
+                "SourceSecurityGroupId": { "Fn::GetAtt" : [ "ServerStack", "Outputs.RoleSecurityGroup" ] },
+                "GroupId": { "Fn::GetAtt" : [ "ClientStack", "Outputs.RoleSecurityGroup" ] }
+            }
+        },
+        "SshInstanceSecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "IpProtocol": "tcp",
+                "FromPort": "22",
+                "ToPort": "22",
+                "SourceSecurityGroupId": { "Fn::GetAtt" : [ "ClientStack", "Outputs.RoleSecurityGroup" ] },
+                "GroupId": { "Fn::GetAtt" : [ "VpcStack", "Outputs.CommonSecurityGroup" ] }
+            }
+        },
+        "SshClientSecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "IpProtocol": "tcp",
+                "FromPort": "10022",
+                "ToPort": "10022",
+                "CidrIp": { "Ref": "CustomerCidrIp" },
+                "GroupId": { "Fn::GetAtt" : [ "ClientStack", "Outputs.RoleSecurityGroup" ] }
+            }
+        },
+        "SshDockerSecurityGroupIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "IpProtocol": "tcp",
+                "FromPort": "11022",
+                "ToPort": "11022",
+                "CidrIp": { "Ref": "CustomerCidrIp" },
+                "GroupId": { "Fn::GetAtt" : [ "ClientStack", "Outputs.RoleSecurityGroup" ] }
+            }
+        },
+        "ClientTaskDefinition": {
+            "Type": "AWS::ECS::TaskDefinition",
+            "Properties": {
+                "ContainerDefinitions": [
+                    {
+                        "PortMappings": [
+                            {
+                                "HostPort": "10022",
+                                "ContainerPort": "22"
+                            },
+                            {
+                                "HostPort": "55512",
+                                "ContainerPort": "55512"
+                            }
+                        ],
+                        "Memory": "768",
+                        "Name": "jmeter-client",
+                        "Cpu": "768",
+                        "Image": "cloudpack/jmeter-client"
+                    },
+                    {
+                        "PortMappings": [
+                            {
+                                "HostPort": "11022",
+                                "ContainerPort": "22"
+                            }
+                        ],
+                        "MountPoints": [
+                            {
+                                "ContainerPath": "/var/run/docker.sock",
+                                "SourceVolume": "docker-sock",
+                                "ReadOnly": true
+                            }
+                        ],
+                        "Memory": "128",
+                        "Name": "docker",
+                        "Cpu": "128",
+                        "Image": "cloudpack/docker"
+                    }
+                ],
+                "Volumes": [
+                    {
+                        "Host": { "SourcePath": "/var/run/docker.sock" },
+                        "Name": "docker-sock"
+                    }
+                ]
+            }
+        },
+        "ServerTaskDefinition": {
+            "Type": "AWS::ECS::TaskDefinition",
+            "Properties": {
+                "ContainerDefinitions": [
+                    {
+                        "PortMappings": [
+                            {
+                                "HostPort": "11099",
+                                "ContainerPort": "1099"
+                            },
+                            {
+                                "HostPort": "55501",
+                                "ContainerPort": "55501"
+                            }
+                        ],
+                        "Memory": "768",
+                        "Name": "jmeter-server",
+                        "Cpu": "768",
+                        "Image": "cloudpack/jmeter-server"
+                    }
+                ],
+                "Volumes": []
+            }
+        },
+        "ClientService": {
+            "Type": "AWS::ECS::Service",
+            "Properties": {
+                "Cluster": { "Fn::GetAtt" : [ "ClientStack", "Outputs.Cluster" ] },
+                "DesiredCount": 1,
+                "TaskDefinition": { "Ref": "ClientTaskDefinition" }
+            }
+        },
+        "ServerService": {
+            "Type": "AWS::ECS::Service",
+            "Properties": {
+                "Cluster": { "Fn::GetAtt" : [ "ServerStack", "Outputs.Cluster" ] },
+                "DesiredCount": 2,
+                "TaskDefinition": { "Ref": "ServerTaskDefinition" }
+            }
+        }
+    },
+    "Outputs": {
+    }
+}
