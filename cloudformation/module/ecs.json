@@ -115,6 +115,8 @@
                 ],
                 "UserData": { "Fn::Base64": { "Fn::Join" : [ "\n", [
                     "#!/bin/bash",
+                    "yum -y update",
+                    "grubby --default-kernel | grep `uname -r` || reboot",
                     { "Fn::Join" : [ "", [
                         "echo ECS_CLUSTER=",
                         { "Ref": "Cluster" },

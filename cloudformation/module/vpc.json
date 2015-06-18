@@ -24,6 +24,10 @@
         "Private2SubnetCidrBlock": {
             "Type": "String",
             "Default": "10.0.192.0/18"
+        },
+        "HostedZoneName": {
+            "Type": "String",
+            "Default": "local"
         }
     },
     "Resources": {
@@ -195,6 +199,26 @@
                     ] ] }
                 } ]
             }
+        },
+        "DbSubnetGroup": {
+            "Type": "AWS::RDS::DBSubnetGroup",
+            "Properties": {
+                "DBSubnetGroupDescription": { "Ref": "ProjectName" },
+                "SubnetIds": [
+                    { "Ref": "Private1Subnet" },
+                    { "Ref": "Private2Subnet" }
+                ]
+            }
+        },
+        "HostedZone": {
+            "Type": "AWS::Route53::HostedZone",
+            "Properties": {
+                "Name": { "Ref": "HostedZoneName" },
+                "VPCs": [ {
+                    "VPCId": { "Ref": "Vpc" },
+                    "VPCRegion": { "Ref": "AWS::Region" }
+                } ]
+            }
         }
     },
     "Outputs": {
@@ -215,6 +239,12 @@
         },
         "CommonSecurityGroup": {
             "Value": { "Ref": "CommonSecurityGroup" }
+        },
+        "DbSubnetGroup": {
+            "Value": { "Ref": "DbSubnetGroup" }
+        },
+        "HostedZone": {
+            "Value": { "Ref": "HostedZone" }
         } 
     }
 }

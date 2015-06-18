@@ -35,7 +35,8 @@
                     "/module/vpc.json"
                 ] ] },
                 "Parameters": {
-                    "ProjectName": { "Ref": "ProjectName" }
+                    "ProjectName": { "Ref": "ProjectName" },
+                    "HostedZoneName": "jmeter.local"
                 }
             }
         },
@@ -239,7 +240,7 @@
             "Type": "AWS::ECS::Service",
             "Properties": {
                 "Cluster": { "Fn::GetAtt" : [ "ClientStack", "Outputs.Cluster" ] },
-                "DesiredCount": 1,
+                "DesiredCount": "1",
                 "TaskDefinition": { "Ref": "ClientTaskDefinition" }
             }
         },
@@ -247,7 +248,7 @@
             "Type": "AWS::ECS::Service",
             "Properties": {
                 "Cluster": { "Fn::GetAtt" : [ "ServerStack", "Outputs.Cluster" ] },
-                "DesiredCount": 2,
+                "DesiredCount": "2",
                 "TaskDefinition": { "Ref": "ServerTaskDefinition" }
             }
         }
