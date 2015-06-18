@@ -33,6 +33,15 @@
             "Default": "0"
         }
     },
+    "Mappings": {
+        "RegionMapping": {
+            "us-east-1": { "ImageId": "ami-5f59ac34" },
+            "us-west-2": { "ImageId": "ami-c188b0f1" },
+            "eu-west-1": { "ImageId": "ami-3db4ca4a" },
+            "ap-northeast-1": { "ImageId": "ami-ca01d8ca" },
+            "ap-southeast-2": { "ImageId": "ami-5b5d2661" }
+        }
+    },
     "Resources": {
         "Cluster": {
             "Type": "AWS::ECS::Cluster"
@@ -106,7 +115,7 @@
             "Properties": {
                 "AssociatePublicIpAddress": "true",
                 "KeyName": { "Ref": "KeyName" },
-                "ImageId": "ami-39017e03",
+                "ImageId": { "Fn::FindInMap": [ "RegionMapping", { "Ref": "AWS::Region" }, "ImageId" ] },
                 "InstanceType": { "Ref": "InstanceType" },
                 "IamInstanceProfile": { "Ref": "InstanceProfile" },
                 "SecurityGroups": [
